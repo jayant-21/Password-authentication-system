@@ -1,0 +1,90 @@
+
+
+//`timescale 1ns / 1ps
+
+module pass_auth_tb();
+
+    reg clk;
+    reg rst;
+    reg [3:0] user_input;
+    reg enter;
+    wire access_granted;
+    wire locked;
+
+    // Instantiate the DUT
+    pass_auth dut (
+        .clk(clk),
+        .rst(rst),
+        .user_input(user_input),
+        .enter(enter),
+        .access_granted(access_granted),
+        .locked(locked)
+    );
+
+    // Clock generation
+    initial clk = 0;
+    always #1 clk = ~clk;
+
+    // Dump waves
+    initial begin
+        $dumpfile("test.vcd");
+        $dumpvars(0, pass_auth_tb);
+    end
+
+    // Monitor output
+    initial begin
+        $monitor("Time=%0t | user_input=%d | enter=%b | access_granted=%b | locked=%b", 
+                  $time, user_input, enter, access_granted, locked);
+    end
+
+    // Helper task to enter 4 digits
+    task enter_password(input [3:0] d0, input [3:0] d1, input [3:0] d2, input [3:0] d3);
+        begin
+	  enter =1;
+	   @(negedge clk)
+            user_input = d0; 
+	   @(negedge clk) 
+            user_input = d1;
+	   @(negedge clk) 
+            user_input = d2;  
+	    @(negedge clk)
+            user_input = d3;  
+        end
+    endtask
+
+    // Test sequence
+    initial begin
+        $display("Starting Password Authentication Testbench...");
+        rst = 1; 
+	@(negedge clk)
+        rst = 0; 
+
+        // Test 1: Correct password entry
+        $display("\nTest 1: Correct password (1 2 3 4)");
+        enter_password(4'd1, 4'd2, 4'd3, 4'd4);
+	$display(dut.input_index);
+        #15;
+
+        // Test 2: Incorrect password entry
+        $display("\nTest 2: Incorrect password (1 2 3 5)");
+        enter_password(4'd1, 4'd2, 4'd3, 4'd5);
+        #20;
+
+        // Test 3: Trigger lockout with 3 wrong attempts
+        $display("\nTest 3: Trigger lockout");
+        repeat (3) begin
+            enter_password(4'd0, 4'd0, 4'd0, 4'd0);
+            #10;
+        end
+
+        // Test 4: Reset and retry with correct password
+        $display("\nTest 4: Reset and retry");
+        rst = 1; #10; rst = 0; #10;
+        enter_password(4'd1, 4'd2, 4'd3, 4'd4);
+        #20;
+
+        $display("\nTestbench completed.");
+        #60 $finish;
+    end
+
+endmodule 
